@@ -2,20 +2,21 @@ const express = require('express');
 const router = express.Router();
 const gravatar = require('gravatar');
 const bcrypt = require('bcryptjs');
+const normalise = require('normalize');
+const jwt = require('jsonwebtoken');
+const config = require("config");
 const {check, validationResult} = require('express-validator');
 
 const User = require('../../models/User');
 router.post('/',
-[
+
     check('name','Name is required').notEmpty(),
     check('email', 'Please provide a valid email address').isEmail(),
-    check('password', 'please enter a password of minimum 6 characters').isLength({min:6})
-
-],
+    check('password', 'please enter a password of minimum 6 characters').isLength({min:6}),
 async(req,res)=>{
     const errors = validationResult(req);
     if(!errors.isEmpty()){
-        return res.sendStatus(400).json({errors: errors.array()});
+        return res.status(400).json({errors: errors.array()});
     }
 
     const {name, email, password} = req.body;
@@ -26,7 +27,7 @@ async(req,res)=>{
 
     let user = await User.findOne({email});
     if(user){
-        res.sendStatus(400).json({errors:[{msg: ' User already exists'}]        });
+        res.status(400).json({errors:[{msg: ' User already exists'}]        });
     } 
 
     // get users gravatar
@@ -36,6 +37,7 @@ async(req,res)=>{
         r: 'pg',
         d: 'mm'
     }),
+    {forceHttps: true}
     );
 
     user = new User({
@@ -53,10 +55,24 @@ async(req,res)=>{
 
     // return jsonwebtoken
 
-    res.sendStatus('user Registered');
+    const payload = {
+        user:{
+            id: user.id
+        }
+    };
+    jwt.sign(
+        payload,
+        config.get('jwtSecret'),
+        {expiresIn: '5 days'},
+        (err,token)=>{
+            if(err) throw err;
+            res.json({token});
+        }
+    );
     }catch(err){
         console.log(err.message);
-        res.sendStatus(500).send('Server error');
+        res.status(500).send("Server error");
+       // res .setHeader("server error","500").send("server error");
     }
 });
 
